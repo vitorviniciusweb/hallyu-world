@@ -206,6 +206,51 @@
     #joystick-wrap    { display: block; }
     #btn-chat-mobile  { display: flex; }
   }
+
+  /* ── RESPONSIVO: tela de criação ── */
+  @media (max-width: 640px) {
+    body {
+      overflow-x: hidden;
+      overflow-y: auto;
+      align-items: flex-start;
+    }
+
+    #screen-create {
+      width: 100%; max-width: 100%;
+      border-radius: 0; box-shadow: none;
+      padding: 20px 16px 32px;
+    }
+    .create-layout {
+      flex-direction: column;
+      align-items: center;
+      gap: 20px;
+    }
+    .preview-box {
+      flex-direction: row;
+      width: 100%;
+      justify-content: center;
+      gap: 20px;
+    }
+    .swatch      { width: 44px; height: 44px; }
+    .icon-btn    { width: 56px; height: 56px; font-size: 22px; }
+    .name-input  { font-size: 16px; } /* evita zoom automático no iOS */
+    #btn-start   { padding: 16px; font-size: 18px; }
+
+    /* ── RESPONSIVO: canvas do jogo ── */
+    #screen-game {
+      position: fixed;
+      inset: 0;
+      background: #1a1a2e;
+    }
+    #game-canvas {
+      position: absolute;
+      top: 50%; left: 50%;
+      transform: translate(-50%, -50%);
+      width: auto; height: auto;
+      max-width: 100vw; max-height: 100vh;
+      border-radius: 0; box-shadow: none;
+    }
+  }
 </style>
 </head>
 <body>
