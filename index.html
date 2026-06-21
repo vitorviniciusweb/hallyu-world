@@ -2,7 +2,10 @@
 <html lang="pt-BR">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="theme-color" content="#1a1a2e">
 <title>Hallyu World</title>
 <style>
   * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -163,6 +166,46 @@
     color: #fff; font-size: 14px; padding: 3px 9px; font-weight: 700; flex-shrink: 0;
   }
   #chat-send:hover { opacity: 0.85; }
+
+  /* ── MOBILE: Joystick ── */
+  #joystick-wrap {
+    display: none; position: absolute;
+    bottom: 24px; left: 24px;
+    width: 120px; height: 120px;
+    touch-action: none; z-index: 20;
+  }
+  #joystick-base {
+    width: 120px; height: 120px; border-radius: 50%;
+    background: rgba(255,255,255,0.14);
+    border: 2.5px solid rgba(255,255,255,0.38);
+    position: relative;
+  }
+  #joystick-knob {
+    width: 50px; height: 50px; border-radius: 50%;
+    background: rgba(196,160,245,0.82);
+    border: 2.5px solid rgba(255,255,255,0.78);
+    box-shadow: 0 2px 10px rgba(150,80,220,0.4);
+    position: absolute; top: 50%; left: 50%;
+    transform: translate(-50%, -50%);
+    pointer-events: none;
+  }
+
+  /* ── MOBILE: Botão de chat ── */
+  #btn-chat-mobile {
+    display: none; position: absolute;
+    bottom: 24px; right: 24px;
+    width: 58px; height: 58px; border-radius: 50%;
+    background: linear-gradient(135deg, #f7b8e0, #c4a0f5);
+    border: none; font-size: 24px;
+    box-shadow: 0 4px 16px rgba(200,120,240,0.45);
+    touch-action: manipulation; z-index: 20; cursor: pointer;
+    align-items: center; justify-content: center;
+  }
+
+  @media (hover: none) and (pointer: coarse) {
+    #joystick-wrap    { display: block; }
+    #btn-chat-mobile  { display: flex; }
+  }
 </style>
 </head>
 <body>
@@ -248,6 +291,14 @@
       <button id="chat-send">↵</button>
     </div>
   </div>
+
+  <!-- MOBILE CONTROLS -->
+  <div id="joystick-wrap">
+    <div id="joystick-base">
+      <div id="joystick-knob"></div>
+    </div>
+  </div>
+  <button id="btn-chat-mobile">💬</button>
 </div>
 
 <script>
@@ -567,6 +618,10 @@ let player, keys, camX, camY, animFrame, animTimer;
 let dialogOpen = false, nearNPC = null, chatFocused = false;
 let playerBubble = { text: '', timer: 0 };
 
+// ── Mobile joystick ──
+const joystick = { active: false, startX: 0, startY: 0, dx: 0, dy: 0, touchId: null };
+const JOYSTICK_MAX = 37; // px máx de deslocamento do knob
+
 // ── Multiplayer ──
 let ws = null;
 const remotePlayers = new Map();
@@ -629,6 +684,65 @@ function startGame() {
   });
   chatSend.addEventListener('click', sendChatMessage);
 
+  // ── Joystick touch ──
+  const jWrap = document.getElementById('joystick-wrap');
+  const jKnob = document.getElementById('joystick-knob');
+
+  jWrap.addEventListener('touchstart', e => {
+    e.preventDefault();
+    if (joystick.active) return;
+    const t = e.changedTouches[0];
+    const r = jWrap.getBoundingClientRect();
+    joystick.active  = true;
+    joystick.touchId = t.identifier;
+    joystick.startX  = r.left + r.width  / 2;
+    joystick.startY  = r.top  + r.height / 2;
+    moveKnob(t.clientX, t.clientY);
+  }, { passive: false });
+
+  document.addEventListener('touchmove', e => {
+    if (!joystick.active) return;
+    for (const t of e.changedTouches) {
+      if (t.identifier === joystick.touchId) {
+        e.preventDefault();
+        moveKnob(t.clientX, t.clientY);
+        break;
+      }
+    }
+  }, { passive: false });
+
+  const releaseJoystick = e => {
+    for (const t of e.changedTouches) {
+      if (t.identifier === joystick.touchId) {
+        joystick.active = false;
+        joystick.dx = 0; joystick.dy = 0;
+        joystick.touchId = null;
+        jKnob.style.transform = 'translate(-50%, -50%)';
+        break;
+      }
+    }
+  };
+  document.addEventListener('touchend',    releaseJoystick);
+  document.addEventListener('touchcancel', releaseJoystick);
+
+  function moveKnob(cx, cy) {
+    const dx   = cx - joystick.startX;
+    const dy   = cy - joystick.startY;
+    const dist = Math.hypot(dx, dy);
+    const r    = Math.min(dist, JOYSTICK_MAX);
+    const ang  = Math.atan2(dy, dx);
+    joystick.dx = Math.cos(ang) * (r / JOYSTICK_MAX);
+    joystick.dy = Math.sin(ang) * (r / JOYSTICK_MAX);
+    const kx = Math.cos(ang) * r;
+    const ky = Math.sin(ang) * r;
+    jKnob.style.transform = `translate(calc(-50% + ${kx}px), calc(-50% + ${ky}px))`;
+  }
+
+  // ── Botão de chat mobile ──
+  document.getElementById('btn-chat-mobile').addEventListener('click', () => {
+    document.getElementById('chat-input').focus();
+  });
+
   connectWS();
   requestAnimationFrame(gameLoop);
 }
@@ -684,10 +798,15 @@ function gameLoop(ts) {
 function updatePlayer(dt) {
   if (chatFocused) { player.moving = false; animFrame = 0; return; }
   let dx = 0, dy = 0;
-  if (keys['ArrowLeft']  || keys['a'] || keys['A']) dx = -1;
-  if (keys['ArrowRight'] || keys['d'] || keys['D']) dx =  1;
-  if (keys['ArrowUp']    || keys['w'] || keys['W']) dy = -1;
-  if (keys['ArrowDown']  || keys['s'] || keys['S']) dy =  1;
+  if (joystick.active) {
+    dx = joystick.dx;
+    dy = joystick.dy;
+  } else {
+    if (keys['ArrowLeft']  || keys['a'] || keys['A']) dx = -1;
+    if (keys['ArrowRight'] || keys['d'] || keys['D']) dx =  1;
+    if (keys['ArrowUp']    || keys['w'] || keys['W']) dy = -1;
+    if (keys['ArrowDown']  || keys['s'] || keys['S']) dy =  1;
+  }
 
   if (dx !== 0 && dy !== 0) { dx *= 0.707; dy *= 0.707; }
 
